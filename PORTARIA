@@ -3,7 +3,7 @@ import time
 import re
 
 # Conectar ao banco de dados SQLite
-conn = sqlite3.connect(':memory:')  # Usando um banco de dados em memória para simplificação
+conn = sqlite3.connect('visitantes.db')  # Cria (ou usa) um banco de dados chamado visitantes.db no diretório atual
 c = conn.cursor()
 
 # Criar tabela para visitantes
