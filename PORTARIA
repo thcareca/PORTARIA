@@ -12,20 +12,13 @@ CREATE TABLE IF NOT EXISTS visitantes (
    id INTEGER PRIMARY KEY,
    nome TEXT,
    cpf TEXT UNIQUE, -- CPF deve ser único
-   placa TEXT NULL,
+   placa TEXT UNIQUE, -- Placa deve ser única
    meio_locomocao INTEGER, -- 1: andando, 2: veículo motorizado, 3: veículo não motorizado
    entrada TIMESTAMP,
    saida TIMESTAMP
 )
 ''')
 conn.commit()
-
-# Função para validar a placa do automóvel
-def validar_placa(placa):
-    if not placa:  # Caso o visitante não tenha fornecido placa
-        return True
-    padrao = r'^[A-Z]{3}\d[A-Z]\d{2}$'  # Regex para formato de placa
-    return re.match(padrao, placa) is not None
 
 # Função para validar CPF
 def validar_cpf(cpf):
@@ -38,22 +31,40 @@ def validar_cpf(cpf):
         return digito if digito < 10 else 0
     return cpf[-2:] == f"{calcular_digito(cpf, 10)}{calcular_digito(cpf, 11)}"
 
-# Função para verificar duplicidade de CPF
-def verificar_cpf_existente(cpf):
-    c.execute("SELECT cpf FROM visitantes WHERE cpf = ?", (cpf,))
+# Função para validar a placa do automóvel
+def validar_placa(placa):
+    if not placa:  # Caso o visitante não tenha fornecido placa
+        return True
+    padrao = r'^[A-Z]{3}\d[A-Z]\d{2}$'  # Regex para formato de placa
+    if not re.match(padrao, placa):  # Validar formato da placa
+        return False
+    if verificar_duplicidade("placa", placa):  # Verificar duplicidade de placa
+        print("Erro: Placa duplicada. Por favor, insira outra placa.")
+        return False
+    return True
+
+# Função para verificar duplicidade de CPF ou placa
+def verificar_duplicidade(coluna, valor):
+    c.execute(f"SELECT {coluna} FROM visitantes WHERE {coluna} = ?", (valor,))
     return c.fetchone() is not None
 
 # Função para registrar entrada de visitante
 def registrar_entrada(nome, cpf, placa, meio_locomocao):
     entrada = time.time()
     try:
+        if verificar_duplicidade("cpf", cpf):  # Verificar duplicidade de CPF
+            print("Erro: CPF já está registrado. Por favor, insira outro CPF.")
+            return
+        if placa and verificar_duplicidade("placa", placa):  # Verificar duplicidade de placa
+            print("Erro: Placa duplicada. Por favor, insira outra placa.")
+            return
         c.execute("INSERT INTO visitantes (nome, cpf, placa, meio_locomocao, entrada) VALUES (?, ?, ?, ?, ?)", 
                   (nome, cpf, placa if placa else None, meio_locomocao, entrada))
         conn.commit()
         print(f"Visitante {nome} registrado na entrada.")
         salvar_em_txt(nome, cpf, placa, meio_locomocao, "Entrada", entrada)
     except sqlite3.IntegrityError:
-        print("Erro: CPF duplicado. O visitante já está registrado.")
+        print("Erro: Não foi possível registrar o visitante. Verifique os dados e tente novamente.")
 
 # Função para registrar saída de visitante
 def registrar_saida(nome):
@@ -105,25 +116,24 @@ if __name__ == "__main__":
             while True:
                 cpf = input("Digite o CPF do visitante (apenas números, 11 dígitos): ")
                 if validar_cpf(cpf):
-                    if verificar_cpf_existente(cpf):
+                    if verificar_duplicidade("cpf", cpf):
                         print("Erro: CPF já está registrado. Por favor, insira outro CPF.")
                     else:
                         break
                 else:
                     print("CPF inválido! Por favor, insira um CPF válido.")
 
-            # Perguntar sobre o meio de locomoção
             while True:
                 meio_locomocao = input("O visitante está (1) andando, (2) de veículo motorizado ou (3) de veículo não motorizado? Escolha: ")
                 if meio_locomocao in ['1', '2', '3']:
-                    meio_locomocao = int(meio_locomocao)  # Converter para número inteiro
-                    if meio_locomocao == 2:  # Veículo motorizado exige placa
+                    meio_locomocao = int(meio_locomocao)
+                    if meio_locomocao == 2:
                         placa = input("Digite a placa do veículo (formato: ABC1D23): ")
                         if validar_placa(placa):
                             break
                         else:
                             print("Placa inválida! Tente novamente.")
-                    else:  # Sem necessidade de placa
+                    else:
                         placa = None
                         break
                 else:
