@@ -45,8 +45,8 @@ def registrar_entrada(tipo, nome, cpf, unidade, placa, meio_locomocao):
     entrada = time.time()
     try:
         c.execute(
-            "INSERT INTO cadastro (tipo, nome, cpf, unidade, placa, meio_locomocao, entrada) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (tipo, nome, cpf, unidade, placa if placa else None, meio_locomocao, entrada)
+            "INSERT INTO cadastro (tipo, nome, cpf, unidade, meio_locomocao, placa, entrada) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (tipo, nome, cpf, unidade, meio_locomocao, placa if placa else None, entrada)
         )
         conn.commit()
         print(f"{nome} registrado com sucesso!")
@@ -54,11 +54,19 @@ def registrar_entrada(tipo, nome, cpf, unidade, placa, meio_locomocao):
         print("Erro: Dados duplicados ou inválidos. Não foi possível registrar.")
 
 # Função para registrar saída
-def registrar_saida(nome):
+def registrar_saida(cpf):
+    # Verificar se o CPF é numérico e possui o formato correto
+    if not cpf.isdigit() or len(cpf) != 11:
+        print("Erro: CPF inválido. Certifique-se de digitar apenas números e que o CPF tenha 11 dígitos.")
+        return
+
     saida = time.time()
-    c.execute("UPDATE cadastro SET saida = ? WHERE nome = ? AND saida IS NULL", (saida, nome))
-    conn.commit()
-    print(f"{nome} registrado na saída.")
+    c.execute("UPDATE cadastro SET saida = ? WHERE cpf = ? AND saida IS NULL", (saida, cpf))
+    if c.rowcount == 0:  # Verificar se algum registro foi atualizado
+        print("Erro: Nenhum registro encontrado para este CPF ou a saída já foi registrada.")
+    else:
+        conn.commit()
+        print(f"Saída registrada com sucesso para o CPF {cpf}.")
 
 # Função para listar registros com filtros
 def listar_registros(filtro=None):
@@ -89,20 +97,47 @@ def main():
             print("(2) Visitante")
             print("(3) Prestador de Serviço")
             print("(4) Funcionário")
-            tipo = int(input("Escolha o tipo da pessoa: "))
+
+            # Loop para validar entrada do tipo (somente números entre 1 e 4)
+            while True:
+                try:
+                    tipo = int(input("Escolha o tipo da pessoa: "))
+                    if tipo not in [1, 2, 3, 4]:  # Verifica se está entre as opções válidas
+                        print("Erro: Digite um número de 1 a 4.")
+                        continue
+                    break  # Sai do loop quando uma entrada válida é fornecida
+                except ValueError:
+                    print("Erro: Apenas números são aceitos. Tente novamente.")
+
             nome = input("Digite o nome: ")
-            cpf = input("Digite o CPF: ")
-            if not validar_cpf(cpf):
-                print("CPF inválido.")
-                continue
+
+            # Loop para garantir um CPF válido e único
+            while True:
+                cpf = input("Digite o CPF: ")
+                if not validar_cpf(cpf):
+                    print("CPF inválido. Tente novamente.")
+                    continue
+                if verificar_duplicidade("cpf", cpf):
+                    print("Erro: CPF já cadastrado. Digite outro CPF.")
+                    continue
+                break  # CPF válido e único, sai do loop
+
             unidade = input("Digite a Unidade/Apartamento (opcional): ") if tipo == 1 else None
-            placa = input("Digite a placa do veículo (se aplicável): ")
-            meio_locomocao = int(input("Meio de Locomoção (1: andando, 2: veículo motorizado, 3: não motorizado): "))
+            meio_locomocao = int(input("Meio de Locomoção (1: andando, 2: veículo automotor, 3: veículo não motorizado): "))
+            
+            # Lógica unificada para a placa
+            placa = None
+            if meio_locomocao == 2:  # Veículos automotores
+                placa = input("Digite a placa do veículo (obrigatório): ")
+                if not placa:
+                    print("Placa é obrigatória para veículos automotores.")
+                    continue
+            
             registrar_entrada(tipo, nome, cpf, unidade, placa, meio_locomocao)
 
         elif escolha == '2':
-            nome = input("Digite o nome para registrar a saída: ")
-            registrar_saida(nome)
+            cpf = input("Digite o CPF para registrar a saída: ")
+            registrar_saida(cpf)
 
         elif escolha == '3':
             filtro = input("Digite um filtro SQL (opcional, exemplo: tipo = 1): ")
